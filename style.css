@@ -1,0 +1,50 @@
+/* NARN - UI & Layout (Meta's Domain) */
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #050508; /* The Void */
+    color: #4a4a4a;
+    font-family: 'Courier New', Courier, monospace;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden; /* Prevents scrolling during gameplay */
+    user-select: none; /* Prevents text selection while clicking */
+}
+
+#game-container {
+    position: relative;
+    border: 2px solid #1a1a1a;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+}
+
+canvas {
+    display: block;
+    background: #000;
+    image-rendering: pixelated; /* Keeps ChatGPT's sprites crisp */
+    max-width: 100vw;
+    max-height: 100vh;
+}
+
+/* UI Overlay for Kimiko's Dialogue & Meta's HUD */
+#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Let clicks pass through to the canvas */
+}
+
+.hud-text {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-size: 12px;
+    color: #333;
+    text-shadow: 0 0 5px rgba(255, 0, 0, 0.2);
+}
