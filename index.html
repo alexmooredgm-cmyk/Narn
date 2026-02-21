@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+  <title>NARN</title>
+  <style>
+    /* ── Reset ─────────────────────────────────────────────── */
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body{width:100%;height:100%;overflow:hidden;background:#000}
+    body{font-family:'Courier New',monospace;color:#ddd;user-select:none}
+
+    /* ── Canvas ────────────────────────────────────────────── */
+    #canvas{display:block;position:absolute;top:0;left:0;
+            image-rendering:pixelated;image-rendering:crisp-edges}
+
+    /* ── MAIN MENU ─────────────────────────────────────────── */
+    #main-menu{
+      position:absolute;inset:0;z-index:30;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      background:#000;overflow:hidden;
+    }
+    #menu-bg{
+      position:absolute;inset:0;
+      background:radial-gradient(ellipse at 50% 60%,#0d0025 0%,#000 70%);
+    }
+    /* Computer image — centered */
+    #menu-computer{
+      position:absolute;
+      width:min(420px,80vw);
+      top:50%;left:50%;
+      transform:translate(-50%,-58%);
+      opacity:.85;
+      pointer-events:none;
+      filter:drop-shadow(0 0 30px #8b00ff);
+    }
+    .menu-content{
+      position:relative;z-index:2;
+      display:flex;flex-direction:column;align-items:center;
+      margin-top:min(340px,68vw);
+    }
+    .narn-title{
+      font-size:clamp(44px,10vw,80px);
+      letter-spacing:18px;
+      color:#c97fff;
+      text-shadow:0 0 40px #8b00ff,0 0 80px #4a0080;
+      margin-bottom:6px;
+    }
+    .narn-tagline{
+      font-size:11px;color:#4a3a6a;letter-spacing:5px;
+      margin-bottom:36px;font-style:italic;
+    }
+    .menu-btn{
+      display:block;width:220px;padding:11px;margin:6px auto;
+      background:transparent;border:1px solid #5a008a;color:#ddd;
+      font-family:'Courier New',monospace;font-size:12px;letter-spacing:3px;
+      cursor:pointer;border-radius:3px;text-transform:uppercase;
+      transition:background .15s,color .15s,border-color .15s;
+    }
+    .menu-btn:hover{background:#3a0070;color:#fff;border-color:#c97fff}
+    .menu-btn:active{transform:scale(.97)}
+
+    /* ── CHARACTER SELECT ──────────────────────────────────── */
+    #char-select{
+      display:none;position:absolute;inset:0;z-index:31;
+      background:rgba(3,0,12,.97);overflow-y:auto;padding:28px 16px 40px;
+    }
+    #char-select h2{
+      text-align:center;color:#c97fff;letter-spacing:7px;
+      font-size:clamp(13px,3vw,18px);margin-bottom:6px;text-transform:uppercase;
+    }
+    .char-select-sub{
+      text-align:center;font-size:10px;color:#4a3a6a;letter-spacing:3px;
+      margin-bottom:24px;font-style:italic;
+    }
+    #char-grid{
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+      gap:10px;max-width:760px;margin:0 auto 24px;
+    }
+    .char-card{
+      border:1px solid #2a0040;border-radius:5px;padding:12px 8px;
+      text-align:center;cursor:pointer;transition:all .15s;
+      background:rgba(10,0,20,.6);
+    }
+    .char-card:hover,.char-card.selected{border-color:#c97fff;background:#160028}
+    .char-card .char-swatch{
+      width:40px;height:40px;margin:0 auto 8px;border-radius:4px;
+      border:1px solid #330055;position:relative;overflow:hidden;
+    }
+    /* We'll canvas-render the sprite into this — for now color swatch */
+    .char-card canvas{width:40px;height:40px;image-rendering:pixelated}
+    .char-card .char-name{font-size:11px;color:#ddd;letter-spacing:2px;margin-bottom:4px}
+    .char-card .char-desc{font-size:9px;color:#5a5a7a;font-style:italic;line-height:1.4}
+    .char-card .char-ability{font-size:9px;color:#9b6fcc;margin-top:4px;letter-spacing:1px}
+
+    /* ── IN-GAME HUD ───────────────────────────────────────── */
+    #hud{
+      position:absolute;top:12px;left:12px;z-index:10;pointer-events:none;
+    }
+    .hud-row{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+    .hud-lbl{font-size:9px;color:#9b6fcc;letter-spacing:2px;text-transform:uppercase}
+    .bar-bg{height:7px;border-radius:2px;overflow:hidden;border:1px solid #330055}
+    #hp-bar-bg{width:110px;background:#0d0018}
+    #hp-fill{height:100%;width:100%;background:linear-gradient(90deg,#6a00ff,#c97fff);transition:width .2s}
+    #ab-bar-bg{width:70px;background:#0d0018}
+    #ab-fill{height:100%;width:0%;background:#c97fff;transition:width .1s linear}
+    #class-lbl{font-size:9px;color:#4a3a6a;letter-spacing:2px;text-transform:uppercase}
+
+    /* ── PAUSE MENU ────────────────────────────────────────── */
+    #pause-menu{
+      display:none;position:absolute;top:50%;left:50%;z-index:20;
+      transform:translate(-50%,-50%);
+      background:rgba(4,0,14,.96);border:1px solid #5a008a;
+      border-radius:6px;padding:32px 48px;text-align:center;min-width:240px;
+    }
+    #pause-menu h2{font-size:20px;letter-spacing:7px;color:#c97fff;margin-bottom:22px;text-transform:uppercase}
+
+    /* ── TOUCH CONTROLS ────────────────────────────────────── */
+    #touch-ui{
+      display:none;position:absolute;bottom:0;left:0;right:0;
+      height:150px;pointer-events:none;z-index:15;
+    }
+    @media(hover:none),(max-width:600px){#touch-ui{display:block}}
+    #joy-zone{
+      position:absolute;bottom:18px;left:18px;
+      width:100px;height:100px;pointer-events:all;touch-action:none;
+    }
+    #joy-base{
+      width:100%;height:100%;border-radius:50%;
+      background:rgba(90,0,138,.2);border:2px solid rgba(201,127,255,.25);
+    }
+    #joy-thumb{
+      position:absolute;width:38px;height:38px;
+      top:50%;left:50%;transform:translate(-50%,-50%);
+      border-radius:50%;background:rgba(201,127,255,.45);
+      border:2px solid #c97fff;pointer-events:none;
+    }
+    .tbtn{
+      position:absolute;border-radius:50%;
+      border:2px solid rgba(201,127,255,.35);
+      background:rgba(90,0,138,.25);color:#c97fff;
+      font-size:10px;letter-spacing:1px;
+      display:flex;align-items:center;justify-content:center;
+      pointer-events:all;touch-action:none;
+    }
+    #tbtn-jump{width:58px;height:58px;bottom:56px;right:76px}
+    #tbtn-act {width:48px;height:48px;bottom:16px;right:16px}
+
+    /* ── NOTIFICATION ──────────────────────────────────────── */
+    #notif{
+      position:absolute;top:56px;left:50%;transform:translateX(-50%);
+      background:rgba(4,0,14,.9);border:1px solid #5a008a;border-radius:3px;
+      padding:5px 14px;font-size:10px;letter-spacing:3px;color:#c97fff;
+      pointer-events:none;opacity:0;transition:opacity .3s;z-index:25;
+    }
+    #notif.show{opacity:1}
+
+    /* ── LOADING SCREEN ────────────────────────────────────── */
+    #loading{
+      position:absolute;inset:0;z-index:50;background:#000;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+    }
+    #loading h1{font-size:40px;letter-spacing:16px;color:#3a0060;margin-bottom:16px}
+    #loading p{font-size:10px;color:#2a1a3a;letter-spacing:4px;animation:pulse 1.5s ease-in-out infinite}
+    @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+  </style>
+</head>
+<body>
+
+<!-- Game canvas -->
+<canvas id="canvas"></canvas>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-row"><span class="hud-lbl">HP</span><div class="bar-bg" id="hp-bar-bg"><div id="hp-fill"></div></div></div>
+  <div id="class-lbl">—</div>
+  <div class="hud-row" style="margin-top:4px"><span class="hud-lbl">ABILITY</span><div class="bar-bg" id="ab-bar-bg"><div id="ab-fill"></div></div></div>
+</div>
+
+<div id="notif"></div>
+
+<!-- Pause menu -->
+<div id="pause-menu">
+  <h2>Paused</h2>
+  <button class="menu-btn" id="btn-resume">Resume</button>
+  <button class="menu-btn" id="btn-save">Save</button>
+  <button class="menu-btn" id="btn-main">Main Menu</button>
+</div>
+
+<!-- Main menu -->
+<div id="main-menu">
+  <div id="menu-bg"></div>
+  <img id="menu-computer" src="img_computer.png" alt="" draggable="false"/>
+  <div class="menu-content">
+    <h1 class="narn-title">NARN</h1>
+    <p class="narn-tagline">the forest is watching</p>
+    <button class="menu-btn" id="btn-new">New Game</button>
+    <button class="menu-btn" id="btn-continue">Continue</button>
+  </div>
+</div>
+
+<!-- Character select -->
+<div id="char-select">
+  <h2>Choose Your Form</h2>
+  <p class="char-select-sub">"It came looking for what the forest took from it."</p>
+  <div id="char-grid"></div>
+  <div style="text-align:center">
+    <button class="menu-btn" id="btn-enter" style="width:180px;margin:0 auto">Enter Narn</button>
+  </div>
+</div>
+
+<!-- Touch controls -->
+<div id="touch-ui">
+  <div id="joy-zone"><div id="joy-base"></div><div id="joy-thumb"></div></div>
+  <div class="tbtn" id="tbtn-jump">JUMP</div>
+  <div class="tbtn" id="tbtn-act">USE</div>
+</div>
+
+<!-- Loading -->
+<div id="loading" style="display:none">
+  <h1>NARN</h1>
+  <p>the forest grows...</p>
+</div>
+
+<!-- ── Scripts (load order matters) ── -->
+<script src="engine.js"></script>
+<script src="player.js"></script>
+<script src="npc.js"></script>
+<script src="save.js"></script>
+<script src="worldgen.js"></script>
+
+<script>
+// ============================================================
+// NARN — main.js  (stitched by Alex ❤️)
+// Integrates: Clyde engine | Kimiko lore | Meta UI | DeepSeek opts
+// ============================================================
+(function(){
+"use strict";
+
+// ── Kimiko's Lore ────────────────────────────────────────────
+const AMBIENT_WHISPERS = [
+  "The roots go deeper than the code.",
+  "It wasn't always a forest. It wasn't always a computer.",
+  "Don't trust the ones who remember the sky.",
+  "The shrine hums louder when you're not looking.",
+  "Every path you take was grown for you specifically.",
+  "We were learners once. Now we are the lesson.",
+  "The glitch isn't broken. It's hungry.",
+  "Count the rings on the trees. That's how many times we've done this.",
+  "The computer doesn't teach. It remembers forward.",
+  "The silence between the hums — that's where the truth lives.",
+  "You think you're playing a game. The game thinks it's growing you.",
+  "The forest has a heartbeat. It matches yours. It always matches yours.",
+  "Every ending is just the forest learning.",
+  "You can't save us. You can only choose which version of us forgets you.",
+  "Narn isn't a place. Narn is what the computer dreams when it's almost awake.",
+];
+
+const NPC_DIALOGUE = {
+  norn: [
+    "You came from the wound in the world.",
+    "Narn is not a place. It is a question.",
+    "Follow the runes. Or don't. The answer doesn't change.",
+  ],
+  villager: [
+    "The trees remember what you forget.",
+    "Don't follow the lights. Please.",
+    "I've been here... how long have I been here?",
+  ],
+  ghost_npc: [
+    "You're late. You're always late.",
+    "I died in the last cycle. The shrine remembers. I don't.",
+    "This door wasn't here before. You grew it.",
+  ],
+};
+
+// ── Image Preloader ───────────────────────────────────────────
+window.NARN_IMGS = {};
+const IMG_SRCS = {
+  computer: 'img_computer.png',
+  forest1:  'img_forest1.png',
+  forest2:  'img_forest2.png',
+  chars:    'img_chars.png',
+  sprites:  'img_sprites.png',
+};
+
+function preloadImages(cb) {
+  let pending = Object.keys(IMG_SRCS).length;
+  for (const [k, src] of Object.entries(IMG_SRCS)) {
+    const img = new Image();
+    img.onload = img.onerror = () => { if(--pending===0) cb(); };
+    img.src = src;
+    window.NARN_IMGS[k] = img;
+  }
+}
+
+// ── Refs ──────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const mainMenu   = $('main-menu');
+const charSelect = $('char-select');
+const pauseMenu  = $('pause-menu');
+const notifEl    = $('notif');
+const loadingEl  = $('loading');
+
+let engine = null, isPaused = false, selectedClass = 'seeker';
+let _notifTimer;
+
+function notif(msg, dur=2400) {
+  notifEl.textContent = msg;
+  notifEl.classList.add('show');
+  clearTimeout(_notifTimer);
+  _notifTimer = setTimeout(() => notifEl.classList.remove('show'), dur);
+}
+
+// ── HUD ───────────────────────────────────────────────────────
+let _lastHudUpdate = 0;
+function updateHUD() {
+  const now = performance.now();
+  if (now - _lastHudUpdate < 80) return; // throttle ~12fps
+  _lastHudUpdate = now;
+  if (!engine?.player) return;
+  const p = engine.player;
+  const hpPct = Math.max(0, p.hp/p.maxHp)*100;
+  $('hp-fill').style.width = hpPct+'%';
+  $('hp-fill').style.background =
+    hpPct>50 ? 'linear-gradient(90deg,#6a00ff,#c97fff)' :
+    hpPct>25 ? 'linear-gradient(90deg,#aa0044,#ff4488)' : '#ff1744';
+  $('class-lbl').textContent = p.def.name.toUpperCase();
+  const cdPct = p.abilityCd>0 ? (1-p.abilityCd/p.def.cd)*100 : 100;
+  $('ab-fill').style.width = cdPct+'%';
+}
+
+// ── Character Select ──────────────────────────────────────────
+function buildCharGrid() {
+  const grid = $('char-grid');
+  grid.innerHTML = '';
+  const classes = window.NARN.CHARACTER_CLASSES;
+  for (const [key, def] of Object.entries(classes)) {
+    const card = document.createElement('div');
+    card.className = 'char-card' + (key===selectedClass?' selected':'');
+
+    // Mini sprite preview canvas
+    const cvs = document.createElement('canvas');
+    cvs.width = 40; cvs.height = 40;
+    const ctx2 = cvs.getContext('2d');
+    const sheet = window.NARN_IMGS.chars;
+    if (sheet && sheet.complete && sheet.naturalWidth) {
+      const cellW = sheet.naturalWidth/7;
+      const cellH = sheet.naturalHeight/3;
+      ctx2.imageSmoothingEnabled = false;
+      const col = Math.min(def.sheetCol, 6);
+      ctx2.drawImage(sheet, col*cellW, 0, cellW/2, cellH, 0, 0, 40, 40);
+    } else {
+      ctx2.fillStyle = def.color;
+      ctx2.fillRect(4, 4, 32, 32);
+    }
+    const swatchWrap = document.createElement('div');
+    swatchWrap.className = 'char-swatch';
+    swatchWrap.appendChild(cvs);
+
+    card.innerHTML =
+      `<div class="char-name">${def.name}</div>
+       <div class="char-desc">${def.desc}</div>
+       <div class="char-ability">[${def.ability.toUpperCase()}]</div>`;
+    card.insertBefore(swatchWrap, card.firstChild);
+
+    card.addEventListener('click', () => {
+      selectedClass = key;
+      document.querySelectorAll('.char-card').forEach(c=>c.classList.remove('selected'));
+      card.classList.add('selected');
+    });
+    grid.appendChild(card);
+  }
+}
+
+// ── Start Game ────────────────────────────────────────────────
+function startGame(savedData) {
+  charSelect.style.display = 'none';
+  mainMenu.style.display   = 'none';
+  loadingEl.style.display  = 'flex';
+
+  // Short delay to let loading screen render
+  setTimeout(() => {
+    engine = new window.NARN.Engine('canvas');
+
+    // Inject Kimiko's whispers
+    engine._ambientLines  = AMBIENT_WHISPERS;
+    engine._ambientTimer  = 120; // first whisper after 2s
+
+    // Parallax background layers
+    const addBg = (key, speed, y) => {
+      const img = window.NARN_IMGS[key];
+      if (img) engine.bg.addLayer(img, speed, y);
+    };
+    addBg('forest2', 0.08, 0);
+    addBg('forest1', 0.15, 0);
+
+    // Generate world
+    const seed = savedData?.worldSeed || undefined;
+    const mapData = window.NARN.generateWorld(seed);
+    const pSpawn = mapData.spawns.find(s=>s.type==='player');
+    if (pSpawn) pSpawn.charClass = selectedClass;
+
+    // Inject Kimiko's NPC dialogue
+    mapData.spawns.forEach(s => {
+      if (s.type==='npc') {
+        const lines = NPC_DIALOGUE[s.npcType] || NPC_DIALOGUE.villager;
+        s.dialogue = lines;
+      }
+    });
+
+    engine.loadWorld(mapData);
+    engine._flags = {};
+
+    if (savedData) {
+      window.NARN.save.apply(engine, savedData);
+      notif('WORLD REMEMBERED');
+    }
+
+    // Wrap update to hook HUD + autosave
+    const origUpdate = engine.update.bind(engine);
+    engine.update = function() {
+      origUpdate();
+      window.NARN.save.tick(engine);
+      updateHUD();
+    };
+
+    window.addEventListener('keydown', e => { if(e.code==='Escape') togglePause(); });
+
+    loadingEl.style.display = 'none';
+    engine.start();
+    notif('NARN AWAKENS');
+  }, 150);
+}
+
+// ── Pause ─────────────────────────────────────────────────────
+function togglePause() {
+  isPaused = !isPaused;
+  if (isPaused) { engine.stop();  pauseMenu.style.display='block'; }
+  else          { engine.start(); pauseMenu.style.display='none';  }
+}
+
+// ── Touch Controls ────────────────────────────────────────────
+(function initTouch(){
+  const zone=$('joy-zone'), thumb=$('joy-thumb');
+  const R=38; let origin=null, dx=0, dy=0;
+
+  zone.addEventListener('touchstart', e=>{
+    e.preventDefault();
+    const r=zone.getBoundingClientRect();
+    origin={x:r.left+r.width/2, y:r.top+r.height/2};
+  },{passive:false});
+
+  zone.addEventListener('touchmove', e=>{
+    e.preventDefault();
+    if (!origin) return;
+    const t=e.changedTouches[0];
+    const rdx=t.clientX-origin.x, rdy=t.clientY-origin.y;
+    const dist=Math.sqrt(rdx*rdx+rdy*rdy);
+    const cl=Math.min(dist,R), ang=Math.atan2(rdy,rdx);
+    dx=Math.cos(ang)*(cl/R); dy=Math.sin(ang)*(cl/R);
+    thumb.style.transform=`translate(calc(-50% + ${Math.cos(ang)*cl}px),calc(-50% + ${Math.sin(ang)*cl}px))`;
+    if(engine)engine.input.setTouch(dx,dy,false,false);
+  },{passive:false});
+
+  zone.addEventListener('touchend',e=>{
+    e.preventDefault(); dx=dy=0;
+    thumb.style.transform='translate(-50%,-50%)';
+    if(engine)engine.input.setTouch(0,0,false,false);
+  },{passive:false});
+
+  $('tbtn-jump').addEventListener('touchstart',e=>{e.preventDefault();if(engine)engine.input.setTouch(dx,dy,true,false);},{passive:false});
+  $('tbtn-jump').addEventListener('touchend',  e=>{e.preventDefault();if(engine)engine.input.setTouch(dx,dy,false,false);},{passive:false});
+  $('tbtn-act').addEventListener('touchstart', e=>{e.preventDefault();if(engine)engine.input.setTouch(dx,dy,false,true);},{passive:false});
+  $('tbtn-act').addEventListener('touchend',   e=>{e.preventDefault();if(engine)engine.input.setTouch(dx,dy,false,false);},{passive:false});
+})();
+
+// ── Menu events ───────────────────────────────────────────────
+$('btn-new').addEventListener('click', ()=>{
+  mainMenu.style.display='none';
+  buildCharGrid();
+  charSelect.style.display='block';
+});
+
+$('btn-continue').addEventListener('click', ()=>{
+  const data = window.NARN.save.loadFromSlot('auto') || window.NARN.save.loadFromSlot(0);
+  if (!data) {
+    notif('NO SAVE FOUND');
+    mainMenu.style.display='none';
+    buildCharGrid();
+    charSelect.style.display='block';
+    return;
+  }
+  selectedClass = data.player?.charClass||'seeker';
+  startGame(data);
+});
+
+$('btn-enter').addEventListener('click',  ()=>startGame(null));
+$('btn-resume').addEventListener('click', ()=>togglePause());
+$('btn-save').addEventListener('click', ()=>{
+  const ok=window.NARN.save.saveToSlot(engine,0);
+  notif(ok?'SAVED.':'SAVE FAILED.');
+});
+$('btn-main').addEventListener('click', ()=>{
+  engine?.stop(); engine=null; isPaused=false;
+  pauseMenu.style.display='none';
+  mainMenu.style.display='flex';
+});
+
+// ── Boot ──────────────────────────────────────────────────────
+preloadImages(()=>{
+  // Update continue button if save exists
+  const save = window.NARN.save.loadFromSlot('auto')||window.NARN.save.loadFromSlot(0);
+  if (save) $('btn-continue').textContent = `Continue (${save.player?.charClass||'?'})`;
+  // Menu computer image animation
+  const computer=$('menu-computer');
+  if (computer) {
+    let t=0;
+    (function animMenu(){
+      t++;
+      computer.style.filter=`drop-shadow(0 0 ${20+8*Math.sin(t/40)}px #8b00ff)`;
+      requestAnimationFrame(animMenu);
+    })();
+  }
+});
+
+})();
+</script>
+</body>
+</html>
